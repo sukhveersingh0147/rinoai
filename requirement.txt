@@ -1,0 +1,12 @@
+Rino AI Bot ke liye zaruri libraries
+Yeh file VPS par bot ko deploy karne ke liye use hogi.
+Telegram bot framework (Asynchronous support ke liye)
+python-telegram-bot
+
+Google Gemini API se baat karne ke liye library
+google-genai
+
+MongoDB database se connect hone ke liye library
+pymongo
+
+Spam filtering ke liye 're' (Regular Expression) use hota hai, jo ki Python ki built-in library hai, isliye ise list mein jodna zaruri nahi hai.
