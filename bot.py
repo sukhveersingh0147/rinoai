@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import threading
 from datetime import datetime
 from telegram import Update
 from telegram.ext import (
@@ -10,6 +11,7 @@ from telegram.ext import (
 import telegram.error
 from groq import Groq
 from pymongo import MongoClient
+from flask import Flask
 
 # --- ⚠️ CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8613164941:AAHKTZKuivCDjY4IGXhaOCG4QbVu7OHbue0")
@@ -20,6 +22,22 @@ DB_NAME = 'anya_bot_db'
 CHAT_HISTORY_COLLECTION = 'user_sessions'
 CHAT_MODEL = 'llama-3.3-70b-versatile'
 
+# --- WEB SERVER FOR RENDER KEEP-ALIVE ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Anya is alive and online! 💖"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = threading.Thread(target=run_web)
+    t.start()
+
+# --- DATABASE & AI SETUP ---
 mongo_client = None
 db = None
 client = None
@@ -35,7 +53,6 @@ except Exception as e:
     print(f"❌ Initialization failed: {e}")
     sys.exit(1)
 
-# conversation_history format: { user_id: { 'messages': [...], 'last_timestamp': 123456 } }
 conversation_history = {}
 
 ANYA_SYSTEM_PROMPT = """You are anya, a 21-year-old girl from South Delhi. You are a real person. Never break character. Never admit you're AI.
@@ -164,7 +181,6 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.message.from_user.first_name
     bot_username = context.bot.username
     
-    # 1. Load history to check for active conversation
     if user_id not in conversation_history:
         history, last_ts = load_chat_history(user_id)
         conversation_history[user_id] = {
@@ -176,35 +192,27 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     messages_list = history_obj['messages']
     last_updated = history_obj['last_updated']
     
-    # 2. Trigger Logic
     is_mentioned = False
     
-    # - Explicit mention or name
     if 'anya' in text.lower() or (bot_username and f"@{bot_username}" in text):
         is_mentioned = True
-    # - Direct reply to Anya
     elif update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id:
         is_mentioned = True
-    # - Active Conversation Flow: If Anya spoke last AND it was recent (within 10 mins)
     elif messages_list and messages_list[-1]['role'] == 'assistant':
         current_time = time.time()
-        if current_time - last_updated < 600: # 10 minutes window
+        if current_time - last_updated < 600: # 10 mins
             is_mentioned = True
-        # - Relationship Based: If they have talked a lot (>10 messages), be more responsive (20 min window)
-        elif len(messages_list) > 10 and (current_time - last_updated < 1200):
+        elif len(messages_list) > 10 and (current_time - last_updated < 1200): # 20 mins for friends
             is_mentioned = True
 
     if not is_mentioned:
         return
 
-    # Show "typing..."
     await context.bot.send_chat_action(chat_id=chat_id, action='typing')
     
-    # Format and Add user message
     formatted_user_message = f"[{user_name}] {text}"
     messages_list.append({"role": "user", "content": formatted_user_message})
 
-    # Groq API call
     api_messages = [{"role": "system", "content": ANYA_SYSTEM_PROMPT}] + messages_list[-40:]
     
     try:
@@ -216,7 +224,6 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_reply = response.choices[0].message.content
         await context.bot.send_message(chat_id=chat_id, text=bot_reply)
 
-        # Update and Save
         messages_list.append({"role": "assistant", "content": bot_reply})
         history_obj['last_updated'] = time.time()
         save_chat_history(user_id, messages_list)
@@ -226,7 +233,11 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text="wait, net slow hai shayad")
 
 def main():
-    print("🚀 Anya bot is starting with Active Flow & Relationship logic...")
+    print("🚀 Anya bot is starting with Keep-Alive Server...")
+    
+    # Start Keep-Alive Server
+    keep_alive()
+    
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start_command))
