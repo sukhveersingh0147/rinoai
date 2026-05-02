@@ -1,0 +1,14 @@
+# Rino AI Bot ke liye zaruri libraries
+# Yeh file VPS par bot ko deploy karne ke liye use hogi.
+
+# Telegram bot framework (Asynchronous support ke liye)
+python-telegram-bot
+
+# Groq API se baat karne ke liye library
+groq
+
+# MongoDB database se connect hone ke liye library
+pymongo[srv]
+
+# Optional: python-dotenv for managing environment variables
+python-dotenv
