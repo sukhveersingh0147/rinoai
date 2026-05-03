@@ -176,6 +176,12 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
+    # Ignore messages from bots and channels
+    if update.message.from_user and update.message.from_user.is_bot:
+        return
+    if update.message.sender_chat and update.message.sender_chat.type == 'channel':
+        return
+
     chat_id = str(update.message.chat_id)
     user_id = str(update.message.from_user.id)
     user_name = update.message.from_user.first_name
@@ -191,22 +197,6 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     history_obj = conversation_history[user_id]
     messages_list = history_obj['messages']
     last_updated = history_obj['last_updated']
-    
-    is_mentioned = False
-    
-    if 'anya' in text.lower() or (bot_username and f"@{bot_username}" in text):
-        is_mentioned = True
-    elif update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id:
-        is_mentioned = True
-    elif messages_list and messages_list[-1]['role'] == 'assistant':
-        current_time = time.time()
-        if current_time - last_updated < 600: # 10 mins
-            is_mentioned = True
-        elif len(messages_list) > 10 and (current_time - last_updated < 1200): # 20 mins for friends
-            is_mentioned = True
-
-    if not is_mentioned:
-        return
 
     await context.bot.send_chat_action(chat_id=chat_id, action='typing')
     
