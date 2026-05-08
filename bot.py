@@ -181,7 +181,11 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         print(f"❌ Error in ai_response: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=f"Error: {e}")
+        owner_id = 1351184742
+        try:
+            await context.bot.send_message(chat_id=owner_id, text=f"⚠️ Bot Error in chat {chat_id}:\n{e}")
+        except Exception as send_err:
+            print(f"❌ Failed to send error to owner: {send_err}")
 
 def main():
     print("🚀 Anya bot is starting with Keep-Alive Server...")
