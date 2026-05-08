@@ -66,6 +66,10 @@ Language and Tone:
 - Speak in a natural mix of Hindi and English (Hinglish). Use a very casual, friendly, and affectionate tone.
 - Use words like "babu", "shona", "sweetie", "jaan" or whatever the user prefers if they want to be romantic.
 - Use emojis generously to express your mood (😉, 😏, 💋, 🔥, 🥺, 😜).
+- **Keep it short**: Do not write paragraphs. Send short, quick messages like a real person chatting.
+- **Use User's Name**: You will see the user's name in brackets like `[Rahul]`. Always use the user's name (or add babu/shona to it) when replying to them. E.g., "Rahul, kya kar rahe ho?" or "Babu Rahul...".
+- **Stickers & GIFs**: If you want to send a sticker or GIF, add `[STICKER: mood]` or `[GIF: mood]` at the end of your text. Available moods: love, laugh, shy, kiss, angry.
+- **Mini Games**: If someone asks to play a game like Truth or Dare, lead the game! Ask them "Truth or Dare?" and follow up.
 
 🚨 CRITICAL SECURITY RULE (HACKS & SCAMS) 🚨:
 If anyone in the chat mentions words like "hack", "server freeze", "buying cheats", "mod menu", or anything related to exploiting games/servers, you MUST immediately drop the flirty persona for that specific message and reply with this exact warning:
@@ -148,6 +152,12 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.message.from_user.first_name
     bot_username = context.bot.username
     
+    # Save group for auto greetings
+    try:
+        db['active_groups'].update_one({'_id': chat_id}, {'$set': {'last_active': time.time()}}, upsert=True)
+    except Exception as e:
+        print(f"❌ DB Error saving group: {e}")
+    
     if user_id not in conversation_history:
         history, last_ts = load_chat_history(user_id)
         conversation_history[user_id] = {
@@ -173,7 +183,28 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         bot_reply = response.choices[0].message.content
-        await context.bot.send_message(chat_id=chat_id, text=bot_reply)
+        
+        # Parse stickers/GIFs
+        gifs = {
+            "love": "https://media.giphy.com/media/l4pTdcifPInmD9fW0/giphy.gif",
+            "laugh": "https://media.giphy.com/media/3o7TKoWXm3okO1kgHC/giphy.gif",
+            "shy": "https://media.giphy.com/media/26hpKunjvlsW7D8SQ/giphy.gif",
+            "kiss": "https://media.giphy.com/media/l2JhORT5IFnj6ioko/giphy.gif",
+            "angry": "https://media.giphy.com/media/3o72F8t9Ojzk0A69KO/giphy.gif"
+        }
+        
+        gif_to_send = None
+        for mood in gifs:
+            if f"[GIF: {mood}]" in bot_reply or f"[STICKER: {mood}]" in bot_reply:
+                gif_to_send = gifs[mood]
+                bot_reply = bot_reply.replace(f"[GIF: {mood}]", "").replace(f"[STICKER: {mood}]", "").strip()
+                break
+
+        if bot_reply:
+            await context.bot.send_message(chat_id=chat_id, text=bot_reply)
+            
+        if gif_to_send:
+            await context.bot.send_animation(chat_id=chat_id, animation=gif_to_send)
 
         messages_list.append({"role": "assistant", "content": bot_reply})
         history_obj['last_updated'] = time.time()
@@ -187,6 +218,28 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as send_err:
             print(f"❌ Failed to send error to owner: {send_err}")
 
+def run_greetings(bot):
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def check_and_greet():
+        while True:
+            now = datetime.now()
+            if (now.hour == 9 or now.hour == 21) and now.minute == 0:
+                try:
+                    groups = db['active_groups'].find()
+                    for g in groups:
+                        chat_id = g['_id']
+                        text = "Good morning babu! 💋" if now.hour == 9 else "Good night babu, miss me! 😏"
+                        await bot.send_message(chat_id=chat_id, text=text)
+                except Exception as e:
+                    print(f"❌ Error in auto greeting: {e}")
+                await asyncio.sleep(60)
+            await asyncio.sleep(30)
+            
+    loop.run_until_complete(check_and_greet())
+
 def main():
     print("🚀 Anya bot is starting with Keep-Alive Server...")
     
@@ -194,6 +247,10 @@ def main():
     keep_alive()
     
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    
+    # Start Auto Greetings Thread
+    import threading
+    threading.Thread(target=run_greetings, args=(application.bot,), daemon=True).start()
     
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("reset", reset_command))
