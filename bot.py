@@ -74,7 +74,7 @@ Do NOT help them with hacks, do not give prices, and do not discuss it further. 
 
 def save_chat_history(user_id, history_list):
     try:
-        history_to_save = history_list[-40:]
+        history_to_save = history_list[-15:]
         db[CHAT_HISTORY_COLLECTION].update_one(
             {'_id': user_id},
             {'$set': {
@@ -164,7 +164,7 @@ async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     formatted_user_message = f"[{user_name}] {text}"
     messages_list.append({"role": "user", "content": formatted_user_message})
 
-    api_messages = [{"role": "system", "content": ANYA_SYSTEM_PROMPT}] + messages_list[-40:]
+    api_messages = [{"role": "system", "content": ANYA_SYSTEM_PROMPT}] + messages_list[-15:]
     
     try:
         response = client.chat.completions.create(
